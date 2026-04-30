@@ -1,7 +1,7 @@
 import { google } from 'googleapis';
 import { NextResponse } from 'next/server';
 
-let _cache = null;
+let _cache: any = null;
 let _cacheTime = 0;
 const CACHE_TTL = 5 * 60 * 1000; 
 
