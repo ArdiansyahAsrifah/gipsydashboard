@@ -1,9 +1,9 @@
 import { google } from 'googleapis';
 import { NextResponse } from 'next/server';
 
-let _cache: any = null;
+let _cache: any[] | null = null;
 let _cacheTime = 0;
-const CACHE_TTL = 5 * 60 * 1000; 
+const CACHE_TTL = 5 * 60 * 1000;
 
 const COLUMN_MAP = {
   amount: 1,
@@ -11,16 +11,16 @@ const COLUMN_MAP = {
   customerEmail: 5,
   phone: 6,
   transactionDate: 7,
-  university: 10,        
-  major: 11,           
+  university: 10,
+  major: 11,
   source: 12,
   paymentMethod: 17,
   couponCode: 18,
-  universityFallback: 19, 
-  majorFallback: 21,      
+  universityFallback: 19,
+  majorFallback: 21,
 };
 
-function getWithFallback(row, primaryIdx, fallbackIdx) {
+function getWithFallback(row: string[], primaryIdx: number, fallbackIdx: number): string {
   const primary = row[primaryIdx]?.trim() || '';
   if (primary && primary !== '-') return primary;
   const fallback = row[fallbackIdx]?.trim() || '';
@@ -28,7 +28,7 @@ function getWithFallback(row, primaryIdx, fallbackIdx) {
   return '';
 }
 
-function classifyProduct(rawAmount) {
+function classifyProduct(rawAmount: string | number): string {
   if (!rawAmount) return 'Unknown';
   const cleaned = rawAmount.toString().replace(/[^\d]/g, '');
   const num = parseInt(cleaned, 10);
@@ -41,7 +41,7 @@ function classifyProduct(rawAmount) {
   return 'Unknown';
 }
 
-function parseDateFast(raw) {
+function parseDateFast(raw: string): Date | null {
   if (!raw) return null;
   const d = new Date(raw);
   if (!isNaN(d.getTime())) return d;
@@ -53,7 +53,7 @@ function parseDateFast(raw) {
   return null;
 }
 
-async function fetchAllRows() {
+async function fetchAllRows(): Promise<any[]> {
   const auth = new google.auth.GoogleAuth({
     credentials: {
       client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
@@ -65,17 +65,18 @@ async function fetchAllRows() {
   const sheets = google.sheets({ version: 'v4', auth });
   const response = await sheets.spreadsheets.values.get({
     spreadsheetId: process.env.GOOGLE_SHEETS_SPREADSHEET_ID,
-    range: 'Sheet1!A:V', 
+    range: 'Sheet1!A:V',
   });
 
-  const rows = response.data.values || [];
+  const rows: string[][] = (response.data.values as string[][]) || [];
   console.log('[sheets] raw rows:', rows.length);
 
   if (rows.length === 0) return [];
 
-  const data = rows.slice(1)
-    .filter(row => row[COLUMN_MAP.amount] && row[COLUMN_MAP.amount] !== '-')
-    .map(row => {
+  const data = rows
+    .slice(1)
+    .filter((row) => row[COLUMN_MAP.amount] && row[COLUMN_MAP.amount] !== '-')
+    .map((row) => {
       const rawAmount = row[COLUMN_MAP.amount] || '';
       const cleaned = rawAmount.toString().replace(/[^\d]/g, '');
       const amount = parseInt(cleaned, 10) || 0;
@@ -83,9 +84,11 @@ async function fetchAllRows() {
       const rawDate = row[COLUMN_MAP.transactionDate]?.trim() || '';
       const dateObj = parseDateFast(rawDate);
 
-
-      const university = getWithFallback(row, COLUMN_MAP.university, COLUMN_MAP.universityFallback) || 'Tidak Diketahui';
-      const major = getWithFallback(row, COLUMN_MAP.major, COLUMN_MAP.majorFallback) || '';
+      const university =
+        getWithFallback(row, COLUMN_MAP.university, COLUMN_MAP.universityFallback) ||
+        'Tidak Diketahui';
+      const major =
+        getWithFallback(row, COLUMN_MAP.major, COLUMN_MAP.majorFallback) || '';
 
       return {
         amount,
@@ -107,9 +110,9 @@ async function fetchAllRows() {
   return data;
 }
 
-async function getData() {
+async function getData(): Promise<any[]> {
   const now = Date.now();
-  if (_cache && (now - _cacheTime) < CACHE_TTL) {
+  if (_cache && now - _cacheTime < CACHE_TTL) {
     console.log('[sheets] serving from cache');
     return _cache;
   }
@@ -119,33 +122,36 @@ async function getData() {
   return data;
 }
 
-function buildSummary(data) {
+function buildSummary(data: any[]): any {
   const now = new Date();
   const thisMonth = now.getMonth();
   const thisYear = now.getFullYear();
   const lastMonth = thisMonth === 0 ? 11 : thisMonth - 1;
   const lastMonthYear = thisMonth === 0 ? thisYear - 1 : thisYear;
 
-  const paid = data.filter(r => r.amount > 0);
-  const coupon = paid.filter(r => r.couponCode);
+  const paid = data.filter((r) => r.amount > 0);
+  const coupon = paid.filter((r) => r.couponCode);
 
   let totalRevenue = 0;
-  let thisMRevenue = 0, lastMRevenue = 0;
-  let thisMReg = 0, lastMReg = 0;
-  let thisMPaid = 0, lastMPaid = 0;
+  let thisMRevenue = 0,
+    lastMRevenue = 0;
+  let thisMReg = 0,
+    lastMReg = 0;
+  let thisMPaid = 0,
+    lastMPaid = 0;
 
-  const dailyMap = {};
-  const revDailyMap = {};
-  const sourceMap = {};
-  const univMap = {};
-  const majorMap = {};
-  const productMap = {};
-  const paymentMap = {};
-  const couponMap = {};
-  const hourMap = {};
-  const cohortMap = {};
+  const dailyMap: Record<string, { count: number; ts: number }> = {};
+  const revDailyMap: Record<string, { amount: number; ts: number }> = {};
+  const sourceMap: Record<string, number> = {};
+  const univMap: Record<string, number> = {};
+  const majorMap: Record<string, number> = {};
+  const productMap: Record<string, number> = {};
+  const paymentMap: Record<string, number> = {};
+  const couponMap: Record<string, number> = {};
+  const hourMap: Record<number, number> = {};
+  const cohortMap: Record<string, { total: number; paid: number; ts: number }> = {};
 
-  data.forEach(r => {
+  data.forEach((r) => {
     const d = r.timestamp ? new Date(r.timestamp) : null;
     const m = d ? d.getMonth() : -1;
     const y = d ? d.getFullYear() : -1;
@@ -183,8 +189,14 @@ function buildSummary(data) {
 
     if (r.amount > 0) {
       totalRevenue += r.amount;
-      if (isThisM) { thisMRevenue += r.amount; thisMPaid++; }
-      if (isLastM) { lastMRevenue += r.amount; lastMPaid++; }
+      if (isThisM) {
+        thisMRevenue += r.amount;
+        thisMPaid++;
+      }
+      if (isLastM) {
+        lastMRevenue += r.amount;
+        lastMPaid++;
+      }
 
       if (d) {
         const lbl = d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
@@ -197,18 +209,18 @@ function buildSummary(data) {
     }
   });
 
-  const cohortPaidCount = {};
-  paid.forEach(r => {
+  const cohortPaidCount: Record<string, number> = {};
+  paid.forEach((r) => {
     const d = r.timestamp ? new Date(r.timestamp) : null;
     if (!d) return;
     const key = d.toLocaleDateString('id-ID', { month: 'short', year: 'numeric' });
     cohortPaidCount[key] = (cohortPaidCount[key] || 0) + 1;
   });
-  Object.keys(cohortMap).forEach(k => {
+  Object.keys(cohortMap).forEach((k) => {
     cohortMap[k].paid = cohortPaidCount[k] || 0;
   });
 
-  paid.forEach(r => {
+  paid.forEach((r) => {
     if (r.couponCode) {
       couponMap[r.couponCode] = (couponMap[r.couponCode] || 0) + 1;
     }
@@ -227,21 +239,31 @@ function buildSummary(data) {
     .slice(-6)
     .map(([month, v]) => [month, { total: v.total, paid: v.paid }]);
 
-  const topSort = (m, n = 7) => Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, n);
+  const topSort = (m: Record<string, number>, n = 7): [string, number][] =>
+    Object.entries(m)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, n);
 
-  const MONTHLY_PRICE = {
+  const MONTHLY_PRICE: Record<string, number> = {
     'PRO 1 Bulan': 39000,
     'PRO Researcher 1 Bulan': 53000,
     'PRO 3 Bulan': 72000 / 3,
     'PRO Researcher 3 Bulan': 97000 / 3,
   };
+
   let mrr = 0;
-  data.filter(r => r.amount > 0).forEach(r => {
-    const d = r.timestamp ? new Date(r.timestamp) : null;
-    if (d && d.getMonth() === thisMonth && d.getFullYear() === thisYear) {
-      mrr += MONTHLY_PRICE[r.product] || 0;
-    }
-  });
+  data
+    .filter((r) => r.amount > 0)
+    .forEach((r) => {
+      const d = r.timestamp ? new Date(r.timestamp) : null;
+      if (d && d.getMonth() === thisMonth && d.getFullYear() === thisYear) {
+        mrr += MONTHLY_PRICE[r.product] || 0;
+      }
+    });
+
+  // suppress unused var warnings
+  void lastMRevenue;
+  void lastMPaid;
 
   return {
     total: data.length,
@@ -267,7 +289,7 @@ function buildSummary(data) {
   };
 }
 
-export async function GET(request) {
+export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const mode = searchParams.get('mode') || 'summary';
@@ -285,51 +307,52 @@ export async function GET(request) {
 
     if (mode === 'summary') {
       let filtered = allData;
-      if (product) filtered = filtered.filter(r => r.product === product);
-      if (source) filtered = filtered.filter(r => r.source === source);
+      if (product) filtered = filtered.filter((r) => r.product === product);
+      if (source) filtered = filtered.filter((r) => r.source === source);
       if (dateStart || dateEnd) {
         const ds = dateStart ? new Date(dateStart).getTime() : 0;
         const de = dateEnd ? new Date(dateEnd + 'T23:59:59').getTime() : Infinity;
-        filtered = filtered.filter(r => r.timestamp >= ds && r.timestamp <= de);
+        filtered = filtered.filter((r) => r.timestamp >= ds && r.timestamp <= de);
       }
 
       const summary = buildSummary(filtered);
-      const allProducts = [...new Set(allData.map(r => r.product).filter(Boolean))].sort();
-      const allSources = [...new Set(allData.map(r => r.source).filter(Boolean))].sort();
+      const allProducts = [...new Set(allData.map((r) => r.product).filter(Boolean))].sort();
+      const allSources = [...new Set(allData.map((r) => r.source).filter(Boolean))].sort();
 
-      return NextResponse.json({
-        success: true,
-        mode: 'summary',
-        summary,
-        filterOptions: { products: allProducts, sources: allSources },
-        cached: _cacheTime > 0,
-        lastSync: new Date(_cacheTime).toISOString(),
-      }, {
-        headers: { 'Cache-Control': 'no-store' },
-      });
+      return NextResponse.json(
+        {
+          success: true,
+          mode: 'summary',
+          summary,
+          filterOptions: { products: allProducts, sources: allSources },
+          cached: _cacheTime > 0,
+          lastSync: new Date(_cacheTime).toISOString(),
+        },
+        { headers: { 'Cache-Control': 'no-store' } }
+      );
     }
 
-    // Mode table: paginated + filtered raw rows
     if (mode === 'table') {
       let filtered = allData;
 
-      if (product) filtered = filtered.filter(r => r.product === product);
-      if (source) filtered = filtered.filter(r => r.source === source);
+      if (product) filtered = filtered.filter((r) => r.product === product);
+      if (source) filtered = filtered.filter((r) => r.source === source);
       if (dateStart || dateEnd) {
         const ds = dateStart ? new Date(dateStart).getTime() : 0;
         const de = dateEnd ? new Date(dateEnd + 'T23:59:59').getTime() : Infinity;
-        filtered = filtered.filter(r => r.timestamp >= ds && r.timestamp <= de);
+        filtered = filtered.filter((r) => r.timestamp >= ds && r.timestamp <= de);
       }
       if (search) {
-        filtered = filtered.filter(r =>
-          r.customerName.toLowerCase().includes(search) ||
-          r.customerEmail.toLowerCase().includes(search) ||
-          r.university.toLowerCase().includes(search)
+        filtered = filtered.filter(
+          (r) =>
+            r.customerName.toLowerCase().includes(search) ||
+            r.customerEmail.toLowerCase().includes(search) ||
+            r.university.toLowerCase().includes(search)
         );
       }
 
       filtered = [...filtered].sort((a, b) => {
-        let va, vb;
+        let va: string | number, vb: string | number;
         if (sortCol === 'amount' || sortCol === 'timestamp') {
           va = a[sortCol] || 0;
           vb = b[sortCol] || 0;
@@ -356,9 +379,9 @@ export async function GET(request) {
     }
 
     return NextResponse.json({ success: false, error: 'Invalid mode' }, { status: 400 });
-
   } catch (error) {
-    console.error('[sheets] error:', error);
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    const err = error as Error;
+    console.error('[sheets] error:', err);
+    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
   }
 }
