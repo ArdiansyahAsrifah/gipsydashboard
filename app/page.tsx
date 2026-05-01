@@ -710,7 +710,7 @@ export default function Dashboard() {
     );
   };
 
-  const tabContent: Record<Tab, () => JSX.Element | null> = {
+  const tabContent: Record<Tab, () => React.ReactNode> = {
     Overview: renderOverview, Revenue: renderRevenue,
     Customers: renderCustomers, Analytics: renderAnalytics,
   };
