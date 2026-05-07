@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import LoginPage from './loginpage';
-import Dashboard from './dashboard';
+import Dashboard from './Dashboard';
 
 interface User {
   username: string;
