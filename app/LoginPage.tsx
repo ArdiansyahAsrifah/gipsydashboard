@@ -5,8 +5,8 @@ import { useState, useEffect } from 'react';
 // ─── Akun yang diizinkan ────────────────────────────────────────────────────────
 const ACCOUNTS = [
   { username: 'admin',   password: 'gipsy2025',   name: 'Admin Utama',  role: 'Super Admin' },
-  { username: 'ian',     password: 'reza#123',     name: 'Ian',          role: 'Manager' },
-  { username: 'asrifah', password: 'nadia@456',    name: 'Asrifah',      role: 'Analyst' },
+  { username: 'ian',     password: 'ian#123',     name: 'Ian',          role: 'Manager' },
+  { username: 'asrifah', password: 'asrifah@456',    name: 'Asrifah',      role: 'Analyst' },
 ];
 
 interface LoginPageProps {
