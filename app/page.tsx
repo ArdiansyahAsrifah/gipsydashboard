@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import LoginPage from './loginpage';
+import LoginPage from './LoginPage';
 import Dashboard from './Dashboard';
 
 interface User {
